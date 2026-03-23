@@ -79,59 +79,62 @@ with st.expander("⚙️ Advanced Settings"):
 ref_audio = recorded_audio or uploaded_file
 
 if ref_audio and st.button("Generate Speech"):
-    with st.spinner("Generating voice..."):
-        start_time = time.perf_counter()
-        progress = st.progress(0)
-        status = st.empty()
+    try:
+        with st.spinner("Generating voice..."):
+            start_time = time.perf_counter()
+            progress = st.progress(0)
+            status = st.empty()
 
-        def update_progress(pct: int, label: str, eta_seconds: float | None = None) -> None:
-            elapsed = time.perf_counter() - start_time
-            parts = [label, f"Elapsed: {_format_duration(elapsed)}"]
-            if eta_seconds is not None:
-                parts.append(f"ETA: {_format_duration(eta_seconds)}")
-            status.text(" | ".join(parts))
-            progress.progress(min(100, max(0, int(pct))))
+            def update_progress(pct: int, label: str, eta_seconds: float | None = None) -> None:
+                elapsed = time.perf_counter() - start_time
+                parts = [label, f"Elapsed: {_format_duration(elapsed)}"]
+                if eta_seconds is not None:
+                    parts.append(f"ETA: {_format_duration(eta_seconds)}")
+                status.text(" | ".join(parts))
+                progress.progress(min(100, max(0, int(pct))))
 
-        update_progress(5, "Saving reference audio")
-        prompt_audio_path = _write_reference_audio_to_temp(ref_audio)
+            update_progress(5, "Saving reference audio")
+            prompt_audio_path = _write_reference_audio_to_temp(ref_audio)
 
-        # Encode prompt
-        update_progress(25, "Encoding reference audio")
-        t0 = time.perf_counter()
-        encoded_prompt = lux_tts.encode_prompt(
-            prompt_audio_path,
-            duration=ref_duration,
-            rms=rms
-        )
-        encode_s = time.perf_counter() - t0
+            # Encode prompt
+            update_progress(25, "Encoding reference audio")
+            t0 = time.perf_counter()
+            encoded_prompt = lux_tts.encode_prompt(
+                prompt_audio_path,
+                duration=ref_duration,
+                rms=rms
+            )
+            encode_s = time.perf_counter() - t0
 
-        # Generate speech
-        update_progress(55, "Generating speech", eta_seconds=max(1.0, encode_s * 1.8))
-        t1 = time.perf_counter()
-        final_wav = lux_tts.generate_speech(
-            text,
-            encoded_prompt,
-            num_steps=num_steps,
-            t_shift=t_shift,
-            speed=speed,
-            return_smooth=False
-        )
-        gen_s = time.perf_counter() - t1
-        update_progress(90, "Finalizing output", eta_seconds=max(1.0, gen_s * 0.2))
+            # Generate speech
+            update_progress(55, "Generating speech", eta_seconds=max(1.0, encode_s * 1.8))
+            t1 = time.perf_counter()
+            final_wav = lux_tts.generate_speech(
+                text,
+                encoded_prompt,
+                num_steps=num_steps,
+                t_shift=t_shift,
+                speed=speed,
+                return_smooth=False
+            )
+            gen_s = time.perf_counter() - t1
+            update_progress(90, "Finalizing output", eta_seconds=max(1.0, gen_s * 0.2))
 
-        # Convert to numpy
-        final_wav = final_wav.numpy().squeeze()
+            # Convert to numpy
+            final_wav = final_wav.numpy().squeeze()
 
-        # Save output
-        output_path = "output.wav"
-        sf.write(output_path, final_wav, 48000)
-        update_progress(100, "Done", eta_seconds=0)
+            # Save output
+            output_path = "output.wav"
+            sf.write(output_path, final_wav, 48000)
+            update_progress(100, "Done", eta_seconds=0)
 
-        st.success("✅ Done!")
+            st.success("✅ Done!")
 
-        # Play audio
-        st.audio(output_path)
+            # Play audio
+            st.audio(output_path)
 
-        # Download button
-        with open(output_path, "rb") as f:
-            st.download_button("⬇ Download Audio", f, file_name="output.wav")
+            # Download button
+            with open(output_path, "rb") as f:
+                st.download_button("⬇ Download Audio", f, file_name="output.wav")
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
