@@ -1,4 +1,5 @@
 streamlit
 torch
 soundfile
--e ./LuxTTS
+linacodec @ git+https://github.com/ysharma3501/LinaCodec.git
+./LuxTTS
