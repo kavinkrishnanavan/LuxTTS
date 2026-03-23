@@ -1,5 +1,5 @@
-streamlit
-torch
-soundfile
-linacodec @ git+https://github.com/ysharma3501/LinaCodec.git
+streamlit==1.55.0           # latest release on PyPI (Mar 3, 2026) :contentReference[oaicite:0]{index=0}
+torch==2.10.0               # latest torch version on PyPI (Jan 21, 2026) :contentReference[oaicite:1]{index=1}
+soundfile==0.13.1           # latest soundfile version on PyPI :contentReference[oaicite:2]{index=2}
+linacodec @ git+https://github.com/kavinkrishnanavan/Stable_Version_Linacodec.git
 ./LuxTTS
