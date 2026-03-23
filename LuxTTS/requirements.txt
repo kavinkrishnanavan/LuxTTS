@@ -20,6 +20,6 @@ inflect
 
 # Tokenization
 jieba
-piper_phonemize
+pip install git+https://github.com/rhasspy/piper-phonemize.git
 pypinyin
 setuptools<81
