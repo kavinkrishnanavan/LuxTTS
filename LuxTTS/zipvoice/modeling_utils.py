@@ -43,12 +43,58 @@ class LuxTTSConfig:
     lang: str = "en-us"
 
 
+def _ensure_min_token_length(
+    token_ids_list, pad_id: int, min_len: int, label: str
+):
+    if not token_ids_list or not isinstance(token_ids_list, list) or not token_ids_list[0]:
+        token_ids = []
+    else:
+        token_ids = list(token_ids_list[0])
+
+    if len(token_ids) < min_len:
+        logging.warning(
+            f"{label} token length {len(token_ids)} < {min_len}; padding with pad_id to avoid model crash."
+        )
+        token_ids.extend([pad_id] * (min_len - len(token_ids)))
+
+    return [token_ids]
+
+
 @torch.inference_mode
-def process_audio(audio, transcriber, tokenizer, feature_extractor, device, target_rms=0.1, duration=4, feat_scale=0.1):
+def process_audio(
+    audio,
+    transcriber,
+    tokenizer,
+    feature_extractor,
+    device,
+    target_rms=0.1,
+    duration=4,
+    feat_scale=0.1,
+    prompt_text: Optional[str] = None,
+    min_prompt_token_len: int = 7,
+):
     prompt_wav, sr = librosa.load(audio, sr=24000, duration=duration)
     prompt_wav2, sr = librosa.load(audio, sr=16000, duration=duration)
-    prompt_text = transcriber(prompt_wav2)["text"]
-    print(prompt_text)
+
+    if prompt_text is None:
+        try:
+            asr_out = transcriber(prompt_wav2)
+        except Exception as ex:
+            raise ValueError(
+                "Whisper could not transcribe the reference audio. Try recording a longer/clearer sample, "
+                "or provide the reference transcript manually."
+            ) from ex
+
+        if isinstance(asr_out, dict):
+            prompt_text = asr_out.get("text")
+        else:
+            prompt_text = getattr(asr_out, "text", None)
+
+    if not isinstance(prompt_text, str):
+        prompt_text = ""
+
+    prompt_text = prompt_text.strip()
+    logging.info(f"Reference transcript: {prompt_text!r}")
 
     prompt_wav = torch.from_numpy(prompt_wav).unsqueeze(0)
     prompt_wav, prompt_rms = rms_norm(prompt_wav, target_rms)
@@ -59,10 +105,22 @@ def process_audio(audio, transcriber, tokenizer, feature_extractor, device, targ
     prompt_features = prompt_features.unsqueeze(0) * feat_scale
     prompt_features_lens = torch.tensor([prompt_features.size(1)], device=device)
     prompt_tokens = tokenizer.texts_to_token_ids([prompt_text])
+    prompt_tokens = _ensure_min_token_length(
+        prompt_tokens,
+        pad_id=getattr(tokenizer, "pad_id", 0),
+        min_len=min_prompt_token_len,
+        label="prompt",
+    )
     return prompt_tokens, prompt_features_lens, prompt_features, prompt_rms
 
 def generate(prompt_tokens, prompt_features_lens, prompt_features, prompt_rms, text, model, vocoder, tokenizer, num_step=4, guidance_scale=3.0, speed=1.0, t_shift=0.5, target_rms=0.1):
     tokens = tokenizer.texts_to_token_ids([text])
+    tokens = _ensure_min_token_length(
+        tokens,
+        pad_id=getattr(tokenizer, "pad_id", 0),
+        min_len=7,
+        label="text",
+    )
     device = next(model.parameters()).device  # Auto-detect device
 
     speed = speed * 1.3
